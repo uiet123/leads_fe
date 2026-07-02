@@ -21,6 +21,7 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -28,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Search, MapPin, Globe, Mail, Phone, ExternalLink, Star, Copy, FileText, Activity, Loader2 } from "lucide-react"
+import { Search, MapPin, Globe, Mail, Phone, ExternalLink, Star, Copy, FileText, Activity, Loader2, MessageCircle } from "lucide-react"
 import { Suspense } from "react"
 import { generateDummyLeads, type Lead } from "@/lib/dummy-data-generator"
 
@@ -43,15 +44,62 @@ function SearchResultsContent() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
+  const [nameFilter, setNameFilter] = useState("")
+  const [priorityFilter, setPriorityFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [healthFilter, setHealthFilter] = useState("")
+  const [sortBy, setSortBy] = useState("")
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 20
+
+  const [draftOpen, setDraftOpen] = useState(false)
+  const [draftType, setDraftType] = useState<'whatsapp' | 'email' | null>(null)
+  const [draftLead, setDraftLead] = useState<Lead | null>(null)
+  const [draftText, setDraftText] = useState("")
+
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set())
+  const [isSendingBulk, setIsSendingBulk] = useState(false)
+  const [modalState, setModalState] = useState<{isOpen: boolean, title: string, message: string, type: 'success' | 'error' | 'info'}>({isOpen: false, title: '', message: '', type: 'info'})
+
+  // Reset page when filters change
   useEffect(() => {
-    // Simulate slight delay for processing
+    setCurrentPage(1)
+  }, [nameFilter, priorityFilter, statusFilter, healthFilter, sortBy])
+
+  useEffect(() => {
     setLoading(true)
     setSearchInput(query)
-    const timeout = setTimeout(() => {
-      setDummyLeads(generateDummyLeads(query))
-      setLoading(false)
-    }, 500)
-    return () => clearTimeout(timeout)
+    
+    fetch('/api/leads?type=all')
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch data")
+        return res.json()
+      })
+      .then(json => {
+        if (json.error) throw new Error(json.error)
+        const mappedLeads = (json.data || []).map((record: any, idx: number): Lead => ({
+          id: idx + 1,
+          business: record['Business Name'] || record.Name || '',
+          address: record['Address'] || '',
+          phone: record['Phone Number'] || record.Phone || '',
+          website: record['Website'] || '',
+          rating: parseFloat(record['Rating']) || 0,
+          reviews: parseInt(record['Reviews'], 10) || 0,
+          websiteHealth: record['Website Health'] || 'N/A',
+          websiteStatus: record['Website Status'] || 'NO_WEBSITE',
+          primaryEmail: record['Primary Email'] || 'N/A',
+          allEmails: record['All Emails'] ? String(record['All Emails']).split(',').filter(Boolean) : [],
+          leadScore: parseInt(record['Lead Score'], 10) || 0,
+          priority: record['Priority'] || 'LOW'
+        }))
+        setDummyLeads(mappedLeads)
+      })
+      .catch(err => {
+        console.error(err)
+        setDummyLeads([])
+      })
+      .finally(() => setLoading(false))
   }, [query])
 
   const handleRowClick = (lead: Lead) => {
@@ -70,6 +118,127 @@ function SearchResultsContent() {
       case "LOW": return "bg-green-500/10 text-green-600 border-green-500/20"
       default: return "bg-gray-500/10 text-gray-600 border-gray-500/20"
     }
+  }
+
+  const getMessageText = (lead: Lead) => {
+    return `Hi ${lead.business},
+
+My name is Prince, and I'm a freelance web developer.
+
+I recently built this modern business website for one of my clients:
+https://pearlwhite-one.vercel.app/
+
+I thought ${lead.business} could also benefit from having a professional online presence. I can create a similar website tailored specifically for you with your branding, services, WhatsApp integration, contact forms, Google Maps, SEO, and mobile-friendly design.
+
+Website packages start from just ₹1,999.
+
+If you'd like to see how a new website for ${lead.business} could look, I'd be happy to create a free demo or discuss your requirements.
+
+Looking forward to hearing from you. Thank you!`;
+  }
+
+  const handleOpenDraft = (e: React.MouseEvent, lead: Lead, type: 'whatsapp' | 'email') => {
+    e.stopPropagation();
+    setDraftLead(lead);
+    setDraftType(type);
+    setDraftText(getMessageText(lead));
+    setDraftOpen(true);
+  }
+
+  const sendWhatsApp = () => {
+    if (!draftLead) return;
+    let phone = draftLead.phone.replace(/[^0-9]/g, '');
+    // Format for India by default if it looks like a standard 10 digit or 0-prefixed 11 digit number
+    if (phone.length === 11 && phone.startsWith('0')) {
+      phone = '91' + phone.substring(1);
+    } else if (phone.length === 10) {
+      phone = '91' + phone;
+    }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(draftText)}`, '_blank');
+    setDraftOpen(false);
+  }
+
+  const sendEmail = () => {
+    if (!draftLead) return;
+    const subject = `A modern website for ${draftLead.business}`;
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(draftLead.primaryEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(draftText)}`;
+    window.open(url, '_blank');
+    setDraftOpen(false);
+  }
+
+  const handleBulkEmail = async () => {
+    if (selectedLeadIds.size === 0) return;
+    
+    setIsSendingBulk(true);
+    const leadsToSend = dummyLeads.filter(l => selectedLeadIds.has(l.id));
+    
+    try {
+      const res = await fetch('/api/bulk-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leads: leadsToSend })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        console.log('Bulk Send Results:', data.results);
+        
+        const failed = data.results.filter((r: any) => r.status === 'failed');
+        if (failed.length > 0) {
+          setModalState({
+            isOpen: true, 
+            title: 'Partial Success', 
+            message: `Bulk email dispatch completed, but ${failed.length} emails failed to send. Check console for details.`, 
+            type: 'error' 
+          });
+        } else {
+          setModalState({
+            isOpen: true, 
+            title: 'Success!', 
+            message: 'All emails have been sent successfully!', 
+            type: 'success' 
+          });
+        }
+
+        setSelectedLeadIds(new Set());
+      } else {
+        setModalState({
+          isOpen: true,
+          title: 'Error',
+          message: 'Error sending bulk emails: ' + (data.error || 'Unknown error'),
+          type: 'error'
+        });
+      }
+    } catch (err) {
+      setModalState({
+        isOpen: true,
+        title: 'Network Error',
+        message: 'A network error occurred while sending bulk emails.',
+        type: 'error'
+      });
+      console.error(err);
+    } finally {
+      setIsSendingBulk(false);
+    }
+  }
+
+  const toggleSelectAll = (checked: boolean, paginatedIds: number[]) => {
+    const newSet = new Set(selectedLeadIds);
+    if (checked) {
+      paginatedIds.forEach(id => newSet.add(id));
+    } else {
+      paginatedIds.forEach(id => newSet.delete(id));
+    }
+    setSelectedLeadIds(newSet);
+  }
+
+  const toggleSelect = (checked: boolean, id: number) => {
+    const newSet = new Set(selectedLeadIds);
+    if (checked) {
+      newSet.add(id);
+    } else {
+      newSet.delete(id);
+    }
+    setSelectedLeadIds(newSet);
   }
 
   return (
@@ -115,8 +284,13 @@ function SearchResultsContent() {
           {/* Filter Toolbar */}
           <div className="flex flex-col md:flex-row flex-wrap gap-3 items-center justify-between bg-muted/30 p-2 rounded-lg border">
             <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
-              <Input placeholder="Filter by name..." className="w-[200px] h-9 bg-background shadow-sm" />
-              <Select>
+              <Input 
+                placeholder="Filter by name..." 
+                className="w-[200px] h-9 bg-background shadow-sm" 
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+              />
+              <Select value={priorityFilter} onValueChange={(val) => setPriorityFilter(val || "")}>
                 <SelectTrigger className="w-[140px] h-9 bg-background shadow-sm">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
@@ -127,7 +301,7 @@ function SearchResultsContent() {
                   <SelectItem value="low">Low</SelectItem>
                 </SelectContent>
               </Select>
-              <Select>
+              <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val || "")}>
                 <SelectTrigger className="w-[150px] h-9 bg-background shadow-sm">
                   <SelectValue placeholder="Website Status" />
                 </SelectTrigger>
@@ -137,7 +311,7 @@ function SearchResultsContent() {
                   <SelectItem value="no_website">No Website</SelectItem>
                 </SelectContent>
               </Select>
-              <Select>
+              <Select value={healthFilter} onValueChange={(val) => setHealthFilter(val || "")}>
                 <SelectTrigger className="w-[150px] h-9 bg-background shadow-sm">
                   <SelectValue placeholder="Website Health" />
                 </SelectTrigger>
@@ -149,7 +323,7 @@ function SearchResultsContent() {
               </Select>
             </div>
             <div className="flex gap-2 w-full md:w-auto justify-end mt-2 md:mt-0">
-               <Select>
+               <Select value={sortBy} onValueChange={(val) => setSortBy(val || "")}>
                 <SelectTrigger className="w-[140px] h-9 bg-background shadow-sm">
                   <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
@@ -159,32 +333,75 @@ function SearchResultsContent() {
                   <SelectItem value="reviews">Reviews</SelectItem>
                 </SelectContent>
               </Select>
+              <Button 
+                onClick={handleBulkEmail} 
+                disabled={selectedLeadIds.size === 0 || isSendingBulk}
+                className="h-9 gap-2 shadow-sm"
+              >
+                {isSendingBulk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                Send Bulk ({selectedLeadIds.size})
+              </Button>
             </div>
           </div>
 
-          {/* Data Table */}
-          <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <Table>
+          {(() => {
+            const filteredAndSortedLeads = [...dummyLeads]
+              .filter(lead => {
+                if (nameFilter && !lead.business.toLowerCase().includes(nameFilter.toLowerCase())) return false;
+                if (priorityFilter && priorityFilter !== 'all' && lead.priority.toLowerCase() !== priorityFilter) return false;
+                if (statusFilter && statusFilter !== 'all' && lead.websiteStatus !== statusFilter.toUpperCase()) return false;
+                if (healthFilter && healthFilter !== 'all' && lead.websiteHealth !== healthFilter.toUpperCase()) return false;
+                return true;
+              })
+              .sort((a, b) => {
+                if (sortBy === 'score') return b.leadScore - a.leadScore;
+                if (sortBy === 'rating') return b.rating - a.rating;
+                if (sortBy === 'reviews') return b.reviews - a.reviews;
+                return 0;
+              });
+
+            const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage) || 1;
+            const paginatedLeads = filteredAndSortedLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+            const paginatedIds = paginatedLeads.map(l => l.id);
+            const isAllSelected = paginatedIds.length > 0 && paginatedIds.every(id => selectedLeadIds.has(id));
+
+            return (
+              <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[50px] text-center">
+                      <Checkbox 
+                        checked={isAllSelected} 
+                        onCheckedChange={(c) => toggleSelectAll(c as boolean, paginatedIds)} 
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground w-[250px]">Business</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Rating</TableHead>
-                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Reviews</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Phone</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Website Status</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Website Health</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">Score</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Priority</TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-right w-[150px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dummyLeads.map((lead) => (
+                  {paginatedLeads.map((lead) => (
                     <TableRow 
                       key={lead.id} 
                       onClick={() => handleRowClick(lead)}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
                     >
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox 
+                          checked={selectedLeadIds.has(lead.id)} 
+                          onCheckedChange={(c) => toggleSelect(c as boolean, lead.id)} 
+                          aria-label="Select row"
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         <div className="flex flex-col">
                           <span className="truncate max-w-[230px]">{lead.business}</span>
@@ -197,7 +414,6 @@ function SearchResultsContent() {
                           <span>{lead.rating}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{lead.reviews}</TableCell>
                       <TableCell className="text-muted-foreground text-sm truncate max-w-[120px]">{lead.phone}</TableCell>
                       <TableCell>
                         {lead.websiteStatus === 'HAS_WEBSITE' ? (
@@ -226,19 +442,51 @@ function SearchResultsContent() {
                           {lead.priority}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {lead.phone && lead.phone !== 'N/A' && (
+                            <Button size="icon" variant="outline" className="h-7 w-7 text-green-600 border-green-500/20 hover:bg-green-500/10" onClick={(e) => handleOpenDraft(e, lead, 'whatsapp')} title="Send WhatsApp">
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {lead.primaryEmail && lead.primaryEmail !== 'N/A' && (
+                            <Button size="icon" variant="outline" className="h-7 w-7 text-blue-600 border-blue-500/20 hover:bg-blue-500/10" onClick={(e) => handleOpenDraft(e, lead, 'email')} title="Send Email">
+                              <Mail className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
             <div className="p-4 border-t bg-muted/20 flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Showing {dummyLeads.length > 0 ? 1 : 0} to {dummyLeads.length} of {dummyLeads.length} entries</span>
+              <span className="text-sm text-muted-foreground">
+                Showing {filteredAndSortedLeads.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredAndSortedLeads.length)} of {filteredAndSortedLeads.length} total entries
+              </span>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled>Previous</Button>
-                <Button variant="outline" size="sm" disabled>Next</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                >
+                  Previous
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -332,6 +580,59 @@ function SearchResultsContent() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Message Draft Drawer */}
+      <Sheet open={draftOpen} onOpenChange={setDraftOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto border-l shadow-2xl p-6 flex flex-col gap-6">
+          {draftLead && draftType && (
+            <div className="flex flex-col h-full">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Draft {draftType === 'whatsapp' ? 'WhatsApp' : 'Email'} Message
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1 mb-4">
+                  To: {draftLead.business} <br/>
+                  <span className="font-medium text-foreground">{draftType === 'whatsapp' ? draftLead.phone : draftLead.primaryEmail}</span>
+                </p>
+              </div>
+              <div className="flex-1 flex flex-col min-h-[400px]">
+                <textarea 
+                  className="w-full h-full p-4 bg-muted/50 border rounded-md focus:ring-1 focus:ring-primary outline-none resize-none text-sm"
+                  value={draftText}
+                  onChange={(e) => setDraftText(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button variant="outline" className="flex-1" onClick={() => setDraftOpen(false)}>Cancel</Button>
+                <Button 
+                  className={`flex-1 gap-2 ${draftType === 'whatsapp' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                  onClick={draftType === 'whatsapp' ? sendWhatsApp : sendEmail}
+                >
+                  {draftType === 'whatsapp' ? <MessageCircle className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                  Send Now
+                </Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Simple Custom Modal */}
+      {modalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background rounded-lg shadow-lg max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in duration-200">
+            <h3 className={`text-xl font-bold ${modalState.type === 'error' ? 'text-red-500' : 'text-green-500'}`}>
+              {modalState.title}
+            </h3>
+            <p className="text-muted-foreground whitespace-pre-wrap">{modalState.message}</p>
+            <div className="flex justify-end pt-4 border-t">
+              <Button onClick={() => setModalState({ ...modalState, isOpen: false })}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       
     </div>
   )

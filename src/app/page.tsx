@@ -16,6 +16,7 @@ import { Search, SlidersHorizontal, Clock, Building2, Utensils, Scissors, Dumbbe
 
 export default function DashboardPage() {
   const [query, setQuery] = useState("")
+  const [source, setSource] = useState<"maps" | "instagram">("maps")
 
   const quickCategories = [
     { icon: Utensils, label: "Cafes" },
@@ -39,7 +40,7 @@ export default function DashboardPage() {
       {/* Hero Section */}
       <div className="flex flex-col items-center justify-center text-center space-y-6 mt-8">
         <Badge variant="secondary" className="px-3 py-1 rounded-full bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer">
-          <span className="font-medium">New V2.0 Engine Live</span>
+          <span className="font-medium">New V2.0 Engine Live (Now with Instagram!)</span>
           <ArrowRight className="ml-2 h-3 w-3" />
         </Badge>
         
@@ -51,14 +52,30 @@ export default function DashboardPage() {
           Extract high-quality leads, verify contact details, and analyze website health instantly using our intelligent data engine.
         </p>
 
+        {/* Source Toggle */}
+        <div className="flex bg-muted/50 p-1 rounded-xl shadow-inner mt-4">
+          <button 
+            onClick={() => setSource("maps")}
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${source === "maps" ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Google Maps
+          </button>
+          <button 
+            onClick={() => setSource("instagram")}
+            className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${source === "instagram" ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Instagram (New!)
+          </button>
+        </div>
+
         {/* Search Card */}
-        <Card className="w-full max-w-3xl mt-6 border-muted bg-background/50 backdrop-blur shadow-sm">
+        <Card className="w-full max-w-3xl mt-2 border-muted bg-background/50 backdrop-blur shadow-sm">
           <CardContent className="p-2">
             <div className="flex flex-col sm:flex-row gap-2 relative">
               <div className="relative flex-1 flex items-center">
                 <Search className="absolute left-4 h-5 w-5 text-muted-foreground" />
                 <Input 
-                  placeholder="e.g. 'cafes in gurugram'" 
+                  placeholder={source === "maps" ? "e.g. 'cafes in gurugram'" : "e.g. 'candles in india'"} 
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   className="pl-12 h-14 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-lg shadow-none bg-transparent"
@@ -68,7 +85,7 @@ export default function DashboardPage() {
                 <Button variant="outline" size="icon" className="h-14 w-14 shrink-0 rounded-xl border-muted/50 hover:bg-muted">
                   <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
                 </Button>
-                <Link href={`/searching?q=${encodeURIComponent(query || 'cafes in gurugram')}`} passHref>
+                <Link href={`/searching?q=${encodeURIComponent(query || (source === 'maps' ? 'cafes in gurugram' : 'candles in india'))}&source=${source}`} passHref>
                   <Button className="h-14 px-8 text-base font-semibold rounded-xl shadow-md">
                     Search Leads
                   </Button>

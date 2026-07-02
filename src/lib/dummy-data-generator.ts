@@ -51,7 +51,8 @@ export function generateDummyLeads(query: string): Lead[] {
   
   const leads: Lead[] = []
   
-  for (let i = 0; i < 25; i++) {
+  const maxResults = Math.floor(Math.random() * 200) + 150;
+  for (let i = 0; i < maxResults; i++) {
     const type = types[i % types.length]
     
     // Generate business name

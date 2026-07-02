@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       break;
     case 'all':
     default:
-      filename = 'leads.csv';
+      filename = 'all-leads.csv';
       break;
   }
 
