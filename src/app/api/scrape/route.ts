@@ -14,13 +14,13 @@ export async function GET(request: Request) {
 
   const leadsBePath = path.resolve(process.cwd(), '../leads_be');
   const env = { ...process.env, LIMIT_NEIGHBORHOODS: limitNeighborhoods ? 'true' : 'false' };
-  
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     start(controller) {
       console.log(`Starting live scrape for: "${query}" (Source: ${source || 'maps'}) in ${leadsBePath}...`);
-      
+
       const args = ['src/index.js', query];
       if (source === 'instagram') {
         args.push('--instagram');

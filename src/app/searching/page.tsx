@@ -31,7 +31,7 @@ function SearchingContent() {
   const query = searchParams.get("q") || "cafes in gurugram"
   const source = searchParams.get("source") || "maps"
   const steps = source === 'instagram' ? instagramSteps : mapsSteps
-  
+
   const [currentStep, setCurrentStep] = useState(0)
   const [progress, setProgress] = useState(0)
   const [logs, setLogs] = useState<string[]>([])
@@ -41,19 +41,19 @@ function SearchingContent() {
 
   useEffect(() => {
     let isMounted = true
-    
+
     // Connect to the Server-Sent Events stream
     const eventSource = new EventSource(`/api/scrape?query=${encodeURIComponent(query)}&source=${source}&limitNeighborhoods=true`)
-    
+
     eventSource.onmessage = (event) => {
       if (!isMounted) return
       try {
         const data = JSON.parse(event.data)
-        
+
         if (data.type === 'log' || data.type === 'error') {
           const msg = data.message.trim()
           if (!msg) return
-          
+
           setLogs(prev => {
             const newLogs = [...prev, msg].slice(-10) // keep last 10 lines
             return newLogs
@@ -124,14 +124,14 @@ function SearchingContent() {
             }
           }
         }
-        
+
         if (data.type === 'done') {
           setIsDone(true)
           setProgress(100)
           setCurrentStep(steps.length - 1)
           setEta("Done!")
           eventSource.close()
-          
+
           setTimeout(() => {
             router.push(`/search?q=${encodeURIComponent(query)}&source=${source}`)
           }, 1000)
@@ -159,7 +159,7 @@ function SearchingContent() {
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col items-center justify-center">
       <div className="w-full max-w-lg p-6 space-y-8">
-        
+
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
             <Search className="h-8 w-8 text-primary animate-pulse" />
@@ -181,12 +181,12 @@ function SearchingContent() {
             <span>ETA: {eta}</span>
           </div>
           <Progress value={progress} className="h-2 w-full" />
-          
+
           <div className="space-y-3 hidden sm:block">
             {steps.map((step, index) => {
               const isCompleted = index < currentStep
               const isCurrent = index === currentStep
-              
+
               return (
                 <div key={index} className={`flex items-center gap-3 text-sm transition-all duration-300 ${isCompleted ? 'text-muted-foreground' : isCurrent ? 'text-foreground font-medium' : 'text-muted-foreground/40'}`}>
                   {isCompleted ? (
@@ -215,7 +215,7 @@ function SearchingContent() {
             )}
           </div>
         </div>
-        
+
       </div>
     </div>
   )

@@ -12,6 +12,7 @@ export interface Lead {
   allEmails: string[]
   leadScore: number
   priority: string
+  igUsername?: string
 }
 
 const businessTypes = {
