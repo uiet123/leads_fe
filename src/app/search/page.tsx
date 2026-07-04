@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Search, MapPin, Globe, Mail, Phone, ExternalLink, Star, Copy, FileText, Activity, Loader2, MessageCircle } from "lucide-react"
+import { Search, MapPin, Globe, Mail, Phone, ExternalLink, Star, Copy, FileText, Activity, Loader2, MessageCircle, Send } from "lucide-react"
 import { Suspense } from "react"
 import { generateDummyLeads, type Lead } from "@/lib/dummy-data-generator"
 
@@ -37,6 +37,8 @@ function SearchResultsContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const query = searchParams.get("q") || "cafes in gurugram"
+  const source = searchParams.get("source") || "maps"
+  const isInstagram = source === "instagram"
   const [searchInput, setSearchInput] = useState(query)
   
   const [dummyLeads, setDummyLeads] = useState<Lead[]>([])
@@ -108,7 +110,20 @@ function SearchResultsContent() {
   }
 
   const handleUpdateSearch = () => {
-    router.push(`/searching?q=${encodeURIComponent(searchInput)}`)
+    router.push(`/searching?q=${encodeURIComponent(searchInput)}&source=${source}`)
+  }
+
+  // Derive the Instagram @username from the lead's address / business name / website.
+  const getIgUsername = (lead: Lead): string | null => {
+    const fromAddr = (lead.address || '').match(/instagram\.com\/([A-Za-z0-9._]+)/i)
+    if (fromAddr) return '@' + fromAddr[1]
+    const fromName = (lead.business || '').match(/\(@([A-Za-z0-9._]+)\)/)
+    if (fromName) return '@' + fromName[1]
+    const fromSite = (lead.website || '').match(/instagram\.com\/([A-Za-z0-9._]+)\/?$/i)
+    if (fromSite && !['p', 'reel', 'tv', 'stories', 'explore'].includes(fromSite[1].toLowerCase())) {
+      return '@' + fromSite[1]
+    }
+    return null
   }
 
   const getPriorityColor = (priority: string) => {
@@ -121,20 +136,15 @@ function SearchResultsContent() {
   }
 
   const getMessageText = (lead: Lead) => {
-    return `Hi ${lead.business},
+    return `Hi! I recently designed a premium website for one of my clients and thought ${lead.business} would look amazing with a similar online presence.
 
-My name is Prince, and I'm a freelance web developer.
+Demo: https://winknwrap-house.vercel.app/
 
-I recently built this modern business website for one of my clients:
-https://pearlwhite-one.vercel.app/
+A dedicated website gives customers a more premium shopping experience than Instagram alone, builds trust, showcases your products beautifully, and makes ordering much easier.
 
-I thought ${lead.business} could also benefit from having a professional online presence. I can create a similar website tailored specifically for you with your branding, services, WhatsApp integration, contact forms, Google Maps, SEO, and mobile-friendly design.
+I can create a similar premium website for just ₹1499.
 
-Website packages start from just ₹1,999.
-
-If you'd like to see how a new website for ${lead.business} could look, I'd be happy to create a free demo or discuss your requirements.
-
-Looking forward to hearing from you. Thank you!`;
+Let me know if you'd like one for your brand. 😊`;
   }
 
   const handleOpenDraft = (e: React.MouseEvent, lead: Lead, type: 'whatsapp' | 'email') => {
@@ -379,7 +389,7 @@ Looking forward to hearing from you. Thank you!`;
                       />
                     </TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground w-[250px]">Business</TableHead>
-                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Rating</TableHead>
+
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Phone</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Website Status</TableHead>
                     <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Website Health</TableHead>
@@ -389,75 +399,105 @@ Looking forward to hearing from you. Thank you!`;
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedLeads.map((lead) => (
-                    <TableRow 
-                      key={lead.id} 
-                      onClick={() => handleRowClick(lead)}
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    >
-                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <Checkbox 
-                          checked={selectedLeadIds.has(lead.id)} 
-                          onCheckedChange={(c) => toggleSelect(c as boolean, lead.id)} 
-                          aria-label="Select row"
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        <div className="flex flex-col">
-                          <span className="truncate max-w-[230px]">{lead.business}</span>
-                          <span className="text-xs text-muted-foreground truncate max-w-[230px]">{lead.address}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                          <span>{lead.rating}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm truncate max-w-[120px]">{lead.phone}</TableCell>
-                      <TableCell>
-                        {lead.websiteStatus === 'HAS_WEBSITE' ? (
-                          <Badge variant="outline" className="text-[10px] font-medium border-blue-500/30 bg-blue-500/10 text-blue-600">YES</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] font-medium border-gray-500/30 bg-gray-500/10 text-gray-600">NO</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {lead.websiteHealth !== 'N/A' && (
-                          <span className={`text-[11px] px-2 py-1 rounded-full font-medium ${
-                            lead.websiteHealth === 'LIVE' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                            lead.websiteHealth === 'DEAD' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                            'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          }`}>
-                            {lead.websiteHealth}
-                          </span>
-                        )}
-                        {lead.websiteHealth === 'N/A' && <span className="text-muted-foreground text-xs">-</span>}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary" className="font-mono">{lead.leadScore}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={`text-[10px] border ${getPriorityColor(lead.priority)}`} variant="outline">
-                          {lead.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          {lead.phone && lead.phone !== 'N/A' && (
-                            <Button size="icon" variant="outline" className="h-7 w-7 text-green-600 border-green-500/20 hover:bg-green-500/10" onClick={(e) => handleOpenDraft(e, lead, 'whatsapp')} title="Send WhatsApp">
-                              <MessageCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {lead.primaryEmail && lead.primaryEmail !== 'N/A' && (
-                            <Button size="icon" variant="outline" className="h-7 w-7 text-blue-600 border-blue-500/20 hover:bg-blue-500/10" onClick={(e) => handleOpenDraft(e, lead, 'email')} title="Send Email">
-                              <Mail className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                  {paginatedLeads.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-48 text-center">
+                        <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
+                          <Search className="h-8 w-8 mb-2 opacity-50" />
+                          <p className="text-lg font-medium">No leads found</p>
+                          <p className="text-sm">Try using a different search query or removing filters.</p>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    paginatedLeads.map((lead) => (
+                      <TableRow 
+                        key={lead.id} 
+                        onClick={() => handleRowClick(lead)}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      >
+                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox 
+                            checked={selectedLeadIds.has(lead.id)} 
+                            onCheckedChange={(c) => toggleSelect(c as boolean, lead.id)} 
+                            aria-label="Select row"
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {isInstagram ? (
+                            <a 
+                              href={getIgUsername(lead) ? `https://instagram.com/${getIgUsername(lead).replace('@', '')}` : '#'} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              onClick={(e) => {
+                                if (getIgUsername(lead)) e.stopPropagation();
+                              }}
+                              className={`truncate max-w-[230px] block ${getIgUsername(lead) ? 'hover:underline text-blue-600 dark:text-blue-400' : ''}`}
+                            >
+                              {getIgUsername(lead) || lead.business}
+                            </a>
+                          ) : (
+                            <div className="flex flex-col">
+                              <span className="truncate max-w-[230px]">{lead.business}</span>
+                              <span className="text-xs text-muted-foreground truncate max-w-[230px]">{lead.address}</span>
+                            </div>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-muted-foreground text-sm truncate max-w-[120px]">{lead.phone}</TableCell>
+                        <TableCell>
+                          {lead.websiteStatus === 'HAS_WEBSITE' ? (
+                            <Badge variant="outline" className="text-[10px] font-medium border-blue-500/30 bg-blue-500/10 text-blue-600">YES</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] font-medium border-gray-500/30 bg-gray-500/10 text-gray-600">NO</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {lead.websiteHealth !== 'N/A' && (
+                            <span className={`text-[11px] px-2 py-1 rounded-full font-medium ${
+                              lead.websiteHealth === 'LIVE' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                              lead.websiteHealth === 'DEAD' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                              'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            }`}>
+                              {lead.websiteHealth}
+                            </span>
+                          )}
+                          {lead.websiteHealth === 'N/A' && <span className="text-muted-foreground text-xs">-</span>}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary" className="font-mono">{lead.leadScore}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`text-[10px] border ${getPriorityColor(lead.priority)}`} variant="outline">
+                            {lead.priority}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            {isInstagram && getIgUsername(lead) && (
+                              <Button size="icon" variant="outline" className="h-7 w-7 text-pink-600 border-pink-500/20 hover:bg-pink-500/10" onClick={(e) => {
+                                e.stopPropagation();
+                                const uname = getIgUsername(lead).replace('@', '');
+                                window.open(`https://ig.me/m/${uname}`, '_blank');
+                              }} title="Send Instagram DM">
+                                <Send className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {lead.phone && lead.phone !== 'N/A' && (
+                              <Button size="icon" variant="outline" className="h-7 w-7 text-green-600 border-green-500/20 hover:bg-green-500/10" onClick={(e) => handleOpenDraft(e, lead, 'whatsapp')} title="Send WhatsApp">
+                                <MessageCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {lead.primaryEmail && lead.primaryEmail !== 'N/A' && (
+                              <Button size="icon" variant="outline" className="h-7 w-7 text-blue-600 border-blue-500/20 hover:bg-blue-500/10" onClick={(e) => handleOpenDraft(e, lead, 'email')} title="Send Email">
+                                <Mail className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>

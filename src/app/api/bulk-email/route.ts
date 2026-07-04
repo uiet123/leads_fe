@@ -3,20 +3,15 @@ import nodemailer from 'nodemailer';
 import { Lead } from '@/lib/dummy-data-generator';
 
 const getMessageText = (lead: Lead) => {
-  return `Hi ${lead.business},
+  return `Hi! I recently designed a premium website for one of my clients and thought ${lead.business} would look amazing with a similar online presence.
 
-My name is Prince, and I'm a freelance web developer.
+Demo: https://winknwrap-house.vercel.app/
 
-I recently built this modern business website for one of my clients:
-https://pearlwhite-one.vercel.app/
+A dedicated website gives customers a more premium shopping experience than Instagram alone, builds trust, showcases your products beautifully, and makes ordering much easier.
 
-I thought ${lead.business} could also benefit from having a professional online presence. I can create a similar website tailored specifically for you with your branding, services, WhatsApp integration, contact forms, Google Maps, SEO, and mobile-friendly design.
+I can create a similar premium website for just ₹1499.
 
-Website packages start from just ₹1,999.
-
-If you'd like to see how a new website for ${lead.business} could look, I'd be happy to create a free demo or discuss your requirements.
-
-Looking forward to hearing from you. Thank you!`;
+Let me know if you'd like one for your brand. 😊`;
 };
 
 export async function POST(request: Request) {

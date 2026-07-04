@@ -104,7 +104,7 @@ export default function DashboardPage() {
           </h3>
           <div className="flex flex-wrap gap-2">
             {recentSearches.map((search, i) => (
-              <Link key={i} href={`/searching?q=${encodeURIComponent(search)}`} passHref>
+              <Link key={i} href={`/searching?q=${encodeURIComponent(search)}&source=${source}`} passHref>
                 <Badge variant="outline" className="px-3 py-1.5 font-normal text-muted-foreground hover:text-foreground cursor-pointer transition-colors bg-background">
                   {search}
                 </Badge>

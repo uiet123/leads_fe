@@ -5,11 +5,21 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle2, Circle, Search, Loader2 } from "lucide-react"
 
-const steps = [
+const mapsSteps = [
   "Connecting to Google Maps API...",
   "Searching businesses...",
   "Extracting business details...",
   "Checking websites...",
+  "Validating website health...",
+  "Prioritizing leads...",
+  "Preparing results..."
+]
+
+const instagramSteps = [
+  "Connecting to Google Search...",
+  "Running Instagram dork query...",
+  "Extracting leads from results...",
+  "Parsing profiles & emails...",
   "Validating website health...",
   "Prioritizing leads...",
   "Preparing results..."
@@ -20,12 +30,14 @@ function SearchingContent() {
   const searchParams = useSearchParams()
   const query = searchParams.get("q") || "cafes in gurugram"
   const source = searchParams.get("source") || "maps"
+  const steps = source === 'instagram' ? instagramSteps : mapsSteps
   
   const [currentStep, setCurrentStep] = useState(0)
   const [progress, setProgress] = useState(0)
   const [logs, setLogs] = useState<string[]>([])
   const [eta, setEta] = useState("Calculating...")
   const [isDone, setIsDone] = useState(false)
+  const [scrapeWarning, setScrapeWarning] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -47,27 +59,69 @@ function SearchingContent() {
             return newLogs
           })
 
-          // Very simple heuristic to estimate progress based on the scraper's standard logs
-          if (msg.includes('Found')) {
-            setProgress(10)
-            setCurrentStep(1)
-            setEta("~2 minutes")
-          } else if (msg.includes('Scraping Chunk:')) {
-            setProgress(prev => Math.min(prev + 10, 50))
-            setCurrentStep(2)
-            setEta("~90 seconds")
-          } else if (msg.includes('Collected')) {
-            setProgress(prev => Math.min(prev + 2, 70))
-            setCurrentStep(3)
-            setEta("~60 seconds")
-          } else if (msg.includes('Processing')) {
-            setProgress(prev => Math.min(prev + 1, 85))
-            setCurrentStep(4)
-            setEta("~30 seconds")
-          } else if (msg.includes('Total businesses extracted')) {
-            setProgress(90)
-            setCurrentStep(5)
-            setEta("Finishing up...")
+          // Progress heuristics based on scraper log messages
+          if (source === 'instagram') {
+            // Instagram heuristics (works for both the Serper API and the browser-scraper paths)
+            if (msg.includes('Searching Google for Instagram leads') || msg.includes('Using Serper.dev')) {
+              setProgress(10)
+              setCurrentStep(1)
+              setEta("~60 seconds")
+            } else if (msg.includes('Extracting leads from page')) {
+              setProgress(prev => Math.min(prev + 8, 55))
+              setCurrentStep(2)
+              setEta("~45 seconds")
+            } else if (msg.includes('Navigating to next page')) {
+              setProgress(prev => Math.min(prev + 8, 60))
+              setCurrentStep(2)
+              setEta("~45 seconds")
+            } else if (msg.includes('Total Instagram leads')) {
+              // Matches "Total Instagram leads via Serper" and "...extracted"
+              setProgress(65)
+              setCurrentStep(3)
+              setEta("~30 seconds")
+            } else if (msg.includes('Enriching leads') || msg.includes('unique profiles to visit')) {
+              setProgress(prev => Math.max(prev, 68))
+              setCurrentStep(3)
+              setEta("~30 seconds")
+            } else if (msg.includes('Visiting @')) {
+              // One log line per profile bio visit — creep the bar up
+              setProgress(prev => Math.min(prev + 1, 85))
+              setCurrentStep(4)
+              setEta("~20 seconds")
+            } else if (msg.includes('Processing') || msg.includes('Checking') || msg.includes('Validating') || msg.includes('Enriched')) {
+              setProgress(prev => Math.min(prev + 2, 88))
+              setCurrentStep(4)
+              setEta("~15 seconds")
+            } else if (msg.includes('Extraction Summary') || msg.includes('Priority Breakdown')) {
+              setProgress(90)
+              setCurrentStep(5)
+              setEta("Finishing up...")
+            } else if (msg.includes('CAPTCHA detected') || msg.includes('No Instagram leads were found') || msg.includes('No search results found') || msg.includes('Serper request failed')) {
+              setScrapeWarning(msg)
+            }
+          } else {
+            // Google Maps scraper heuristics
+            if (msg.includes('Found')) {
+              setProgress(10)
+              setCurrentStep(1)
+              setEta("~2 minutes")
+            } else if (msg.includes('Scraping Chunk:')) {
+              setProgress(prev => Math.min(prev + 10, 50))
+              setCurrentStep(2)
+              setEta("~90 seconds")
+            } else if (msg.includes('Collected')) {
+              setProgress(prev => Math.min(prev + 2, 70))
+              setCurrentStep(3)
+              setEta("~60 seconds")
+            } else if (msg.includes('Processing')) {
+              setProgress(prev => Math.min(prev + 1, 85))
+              setCurrentStep(4)
+              setEta("~30 seconds")
+            } else if (msg.includes('Total businesses extracted')) {
+              setProgress(90)
+              setCurrentStep(5)
+              setEta("Finishing up...")
+            }
           }
         }
         
@@ -79,7 +133,7 @@ function SearchingContent() {
           eventSource.close()
           
           setTimeout(() => {
-            router.push(`/search?q=${encodeURIComponent(query)}`)
+            router.push(`/search?q=${encodeURIComponent(query)}&source=${source}`)
           }, 1000)
         }
       } catch (err) {
@@ -92,7 +146,7 @@ function SearchingContent() {
       eventSource.close()
       if (isMounted && !isDone) {
         // Fallback navigate
-        router.push(`/search?q=${encodeURIComponent(query)}`)
+        router.push(`/search?q=${encodeURIComponent(query)}&source=${source}`)
       }
     }
 
@@ -100,7 +154,7 @@ function SearchingContent() {
       isMounted = false
       eventSource.close()
     }
-  }, [query, router, isDone])
+  }, [query, source, router, isDone])
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col items-center justify-center">
@@ -114,6 +168,11 @@ function SearchingContent() {
           <p className="text-muted-foreground">
             Searching {source === 'instagram' ? 'Instagram (via Google)' : 'Google Maps'} for: <span className="font-medium text-foreground">"{query}"</span>
           </p>
+          {scrapeWarning && (
+            <div className="mt-3 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-600 text-sm font-medium">
+              ⚠️ {scrapeWarning}
+            </div>
+          )}
         </div>
 
         <div className="space-y-6 bg-muted/30 p-6 rounded-2xl border">
