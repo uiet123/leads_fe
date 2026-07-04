@@ -61,6 +61,7 @@ function SearchResultsContent() {
   const [draftText, setDraftText] = useState("")
 
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number>>(new Set())
+  const [openedLeads, setOpenedLeads] = useState<Set<number>>(new Set())
   const [isSendingBulk, setIsSendingBulk] = useState(false)
   const [modalState, setModalState] = useState<{ isOpen: boolean, title: string, message: string, type: 'success' | 'error' | 'info' }>({ isOpen: false, title: '', message: '', type: 'info' })
 
@@ -162,6 +163,7 @@ Let me know if you'd like one for your brand. 😊`;
     setDraftType(type);
     setDraftText(getMessageText(lead));
     setDraftOpen(true);
+    setOpenedLeads(prev => new Set(prev).add(lead.id));
   }
 
   const sendWhatsApp = () => {
@@ -408,13 +410,13 @@ Let me know if you'd like one for your brand. 😊`;
                           />
                         </TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground w-[250px]">Business</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center w-[120px]">Actions</TableHead>
 
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Phone</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Website Status</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Website Health</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">Score</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Priority</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-right w-[150px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -451,8 +453,11 @@ Let me know if you'd like one for your brand. 😊`;
                                       href={`https://instagram.com/${username.replace('@', '')}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="truncate max-w-[230px] block hover:underline text-pink-500 dark:text-pink-400 font-semibold"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenedLeads(prev => new Set(prev).add(lead.id));
+                                      }}
+                                      className={`truncate max-w-[230px] block hover:underline font-semibold ${openedLeads.has(lead.id) ? 'text-purple-600 dark:text-purple-400' : 'text-pink-500 dark:text-pink-400'}`}
                                     >
                                       {username}
                                     </a>
@@ -466,6 +471,35 @@ Let me know if you'd like one for your brand. 😊`;
                                   <span className="text-xs text-muted-foreground truncate max-w-[230px]">{lead.address}</span>
                                 </div>
                               )}
+                            </TableCell>
+
+                            <TableCell className="text-center">
+                              <div className="flex justify-center gap-2">
+                                {isInstagram ? (
+                                  // Instagram tab: show only the Instagram DM button
+                                  getIgUsername(lead) && (
+                                    <Button size="icon" variant="outline" className="h-7 w-7 text-pink-600 border-pink-500/20 hover:bg-pink-500/10" onClick={(e) => handleOpenDraft(e, lead, 'instagram')} title="Send Instagram DM">
+                                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+                                      </svg>
+                                    </Button>
+                                  )
+                                ) : (
+                                  // Maps/default tab: show WhatsApp + Email buttons
+                                  <>
+                                    {lead.phone && lead.phone !== 'N/A' && (
+                                      <Button size="icon" variant="outline" className="h-7 w-7 text-green-600 border-green-500/20 hover:bg-green-500/10" onClick={(e) => handleOpenDraft(e, lead, 'whatsapp')} title="Send WhatsApp">
+                                        <MessageCircle className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                    {lead.primaryEmail && lead.primaryEmail !== 'N/A' && (
+                                      <Button size="icon" variant="outline" className="h-7 w-7 text-blue-600 border-blue-500/20 hover:bg-blue-500/10" onClick={(e) => handleOpenDraft(e, lead, 'email')} title="Send Email">
+                                        <Mail className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </TableCell>
 
                             <TableCell className="text-muted-foreground text-sm truncate max-w-[120px]">{lead.phone}</TableCell>
@@ -495,34 +529,7 @@ Let me know if you'd like one for your brand. 😊`;
                                 {lead.priority}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                {isInstagram ? (
-                                  // Instagram tab: show only the Instagram DM button
-                                  getIgUsername(lead) && (
-                                    <Button size="icon" variant="outline" className="h-7 w-7 text-pink-600 border-pink-500/20 hover:bg-pink-500/10" onClick={(e) => handleOpenDraft(e, lead, 'instagram')} title="Send Instagram DM">
-                                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
-                                      </svg>
-                                    </Button>
-                                  )
-                                ) : (
-                                  // Maps/default tab: show WhatsApp + Email buttons
-                                  <>
-                                    {lead.phone && lead.phone !== 'N/A' && (
-                                      <Button size="icon" variant="outline" className="h-7 w-7 text-green-600 border-green-500/20 hover:bg-green-500/10" onClick={(e) => handleOpenDraft(e, lead, 'whatsapp')} title="Send WhatsApp">
-                                        <MessageCircle className="h-3.5 w-3.5" />
-                                      </Button>
-                                    )}
-                                    {lead.primaryEmail && lead.primaryEmail !== 'N/A' && (
-                                      <Button size="icon" variant="outline" className="h-7 w-7 text-blue-600 border-blue-500/20 hover:bg-blue-500/10" onClick={(e) => handleOpenDraft(e, lead, 'email')} title="Send Email">
-                                        <Mail className="h-3.5 w-3.5" />
-                                      </Button>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </TableCell>
+
                           </TableRow>
                         ))
                       )}
